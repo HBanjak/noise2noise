@@ -1,4 +1,3 @@
-
 # Noise2Noise: Learning Image Restoration without Clean Data - _Official TensorFlow implementation of the ICML 2018 paper_
 
 **Jaakko Lehtinen**, **Jacob Munkberg**, **Jon Hasselgren**, **Samuli Laine**, **Tero Karras**, **Miika Aittala**, **Timo Aila**
@@ -9,13 +8,49 @@ _We apply basic statistical reasoning to signal reconstruction by machine learni
 
 ![alt text](img/n2nteaser_1024width.png "Denoising comparison")
 
-For business inquiries, please visit our website and submit the form: [NVIDIA Research Licensing](https://www.nvidia.com/en-us/research/inquiries/)
 
 ## Resources
 
 * [Paper (arXiv)](https://arxiv.org/abs/1803.04189)
 
-All the material, including source code, is made freely available for non-commercial use under the Creative Commons [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/legalcode) license. Feel free to use any of the material in your own work, as long as you give us appropriate credit by mentioning the title and author list of our paper.
+
+## Project Structure
+
+### Core Components
+- `network.py`: Implementation of the neural network architecture for Noise2Noise
+- `train.py`: Main training script for the general denoising model
+- `validation.py`: Tools for validating trained models on test datasets
+- `config.py`: Configuration settings and hyperparameters for training
+
+### Dataset Management
+- `dataset.py`: Base dataset handling and loading utilities
+- `dataset_tool_tf.py`: TensorFlow-specific dataset preprocessing tools
+- `dataset_tool_mri.py`: Specialized tools for MRI dataset processing
+- `download_kodak.py`: Script to download Kodak dataset for testing
+
+### MRI-Specific Components
+- `train_mri.py`: Specialized training script for MRI denoising
+- `config_mri.py`: Configuration settings specific to MRI processing
+
+### Utilities
+- `util.py`: General utility functions used across the project
+- `dnnlib/`: Deep neural network library containing core functionality
+  - Network components
+  - Training frameworks
+  - Utility functions
+
+### Resources
+- `img/`: Directory containing images for documentation
+- `requirements.txt`: List of Python dependencies
+- `LICENSE.txt`: Project license information
+
+## Dependencies
+
+The project requires the following main dependencies (see `requirements.txt` for specific versions):
+- TensorFlow
+- NumPy
+- OpenCV
+- PIL (Python Imaging Library)
 
 ## Getting started
 
@@ -110,10 +145,6 @@ Suppose your training run results were stored under `results/00001-autoencoder-1
 python config.py validate --dataset-dir=datasets/kodak --network-snapshot=results/00001-autoencoder-1gpu-L-n2n/network_final.pickle
 ```
 
-### Pre-trained networks
-
-You can find pre-trained networks for Poisson and Gaussian noise removal here: https://drive.google.com/drive/folders/1-84ORv4wB8W3M6WngFTtccuW7SlPku0V
-
 ## Reproducing Noise2Noise paper results
 
 Here's a summary of training options to reproduce results from the Noise2Noise paper:
@@ -136,6 +167,91 @@ To validate against a trained network, use the following options:
 
 _Note: When running a validation set through the network, you should match the augmentation noise (e.g., Gaussian or Poisson) with the type of noise that was used to train the network._
 
+## Training on Your Own Noisy Dataset
+
+This section provides a step-by-step guide for training the Noise2Noise network on your own dataset of noisy images.
+
+### Step 1: Prepare Your Dataset
+
+1. Create a directory structure for your dataset:
+```bash
+mkdir -p datasets/custom_dataset
+```
+
+2. Organize your noisy images:
+   - Place your noisy images in the `datasets/custom_dataset` directory
+   - Supported image formats: PNG, JPEG
+   - Recommended image size: at least 256x256 pixels (smaller images will be upscaled)
+   - Images should be in RGB format
+
+### Step 2: Convert Dataset to TFRecords
+
+1. Create the TFRecords file from your images:
+```bash
+python dataset_tool_tf.py --input-dir=datasets/custom_dataset --out=datasets/custom_dataset.tfrecords
+```
+
+### Step 3: Configure Training Parameters
+
+1. Create a copy of the config file for your custom training:
+```bash
+copy config.py config_custom.py
+```
+
+2. Modify the following parameters in `config_custom.py`:
+   - Set `train_tfrecords = 'datasets/custom_dataset.tfrecords'`
+   - Adjust `max_epochs` if needed (default is 300)
+   - Modify `minibatch_size` based on your GPU memory
+   - Set `corrupt_targets = True` since we're training on naturally noisy images
+
+### Step 4: Start Training
+
+1. Run the training:
+```bash
+python config_custom.py
+```
+
+The training progress will be displayed showing:
+- Current epoch
+- Training loss
+- Time per epoch
+- Learning rate
+
+Training outputs will be saved in the `results` directory:
+- `network_final.pickle`: The final trained model
+- Sample images showing the denoising results
+
+### Step 5: Validation
+
+1. To validate your trained model on new images:
+```bash
+python config_custom.py validate --dataset-dir=path/to/test/images --network-snapshot=results/[YOUR_TRAINING_DIR]/network_final.pickle
+```
+
+### Tips for Better Results
+
+1. Dataset Quality:
+   - Use high-quality noisy images
+   - Ensure consistent noise levels across your dataset
+   - Include diverse image content
+
+2. Training Parameters:
+   - Start with default parameters
+   - If results are unsatisfactory:
+     - Try increasing `max_epochs`
+     - Adjust learning rate schedule
+     - Modify network capacity
+
+3. Memory Management:
+   - If you run into memory issues:
+     - Reduce `minibatch_size`
+     - Use smaller image crops (adjust in config)
+
+4. Monitoring Training:
+   - Check the generated sample images periodically
+   - Monitor the training loss for convergence
+   - Use validation set to prevent overfitting
+
 ## MRI denoising
 
 ### Preparing the MRI training dataset
@@ -157,30 +273,3 @@ python dataset_tool_mri.py genpng --ixi-dir=~/Downloads/IXI-T1 --outdir=datasets
 ```
 python dataset_tool_mri.py genpkl --png-dir=datasets/ixi-png --pkl-dir=datasets
 ```
-
-### Training
-
-```
-python config_mri.py
-```
-
-A successful invocation should output the following:
-
-```
-dnnlib: Running train_mri.train() on localhost...
-Loading training set.
-Loading dataset from datasets\ixi_train.pkl
-<...long log omitted...>
-Epoch 297/300: time=107.981, train_loss=0.0126064, test_db_clamped=31.72174, lr=0.000002
-Epoch 298/300: time=107.477, train_loss=0.0125972, test_db_clamped=31.73622, lr=0.000001
-Epoch 299/300: time=106.927, train_loss=0.0126012, test_db_clamped=31.74232, lr=0.000001
-Saving final network weights.
-Resetting random seed and saving a bunch of example images.
-dnnlib: Finished train_mri.train() in 8h 59m 19s.
-```
-
-The expected average PSNR on the validation set (named `test_db_clamped` in code) is roughly 31.74 dB.
-
-Noise-to-noise training is enabled by default for the MRI case.  To use noise-to-clean training, edit `config_mri.py` and change `corrupt_targets=True` to `corrupt_targets=False`.
-
-Training for 300 epochs takes roughly 9 hours on an NVIDIA Titan V GPU.
